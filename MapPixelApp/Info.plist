@@ -41,5 +41,13 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app requires location to pull images</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app requires location to pull images</string>
+	<key>NSLocationAlwaysAndWheninUseUsageDescription</key>
+	<string>This app requires location to pull images</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app requires location to pull images</string>
 </dict>
 </plist>
