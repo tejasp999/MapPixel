@@ -9,6 +9,8 @@
 import UIKit
 import MapKit
 import CoreLocation
+import Alamofire
+import AlamofireImage
 
 class MapVC: UIViewController, UIGestureRecognizerDelegate {
     
@@ -20,6 +22,8 @@ class MapVC: UIViewController, UIGestureRecognizerDelegate {
     var screenSize = UIScreen.main.bounds
     var spinnerView : UIActivityIndicatorView?
     var progressLbl : UILabel?
+    var imageURLArray = [String]()
+    var imageArray = [UIImage]()
     var collectionView : UICollectionView?
     var flowLayout = UICollectionViewFlowLayout()
     @IBOutlet weak var mapView: MKMapView!
@@ -64,6 +68,7 @@ class MapVC: UIViewController, UIGestureRecognizerDelegate {
     }
     
     @objc func animateViewDown() {
+        cancelAllSessions()
         pullUpViewConstraint.constant = 0
         UIView.animate(withDuration: 0.1) {
             self.view.layoutIfNeeded()
@@ -88,7 +93,7 @@ class MapVC: UIViewController, UIGestureRecognizerDelegate {
     func addProgressLbl(){
         progressLbl = UILabel()
         progressLbl?.frame = CGRect(x: (screenSize.width / 2) - 100, y: 175, width: 200, height: 50)
-        progressLbl?.font = UIFont(name: "Avenir Next", size: 18)
+        progressLbl?.font = UIFont(name: "Avenir Next", size: 12)
         progressLbl?.textColor = #colorLiteral(red: 0.501960814, green: 0.501960814, blue: 0.501960814, alpha: 1)
         progressLbl?.textAlignment = .center
         collectionView?.addSubview(progressLbl!)
@@ -104,6 +109,7 @@ class MapVC: UIViewController, UIGestureRecognizerDelegate {
         removePins()
         removeSpinner()
         removeProgressLbl()
+        cancelAllSessions()
         animateViewUp()
         addSwipe()
         addSpinner()
@@ -114,11 +120,62 @@ class MapVC: UIViewController, UIGestureRecognizerDelegate {
         mapView.addAnnotation(annotation)
         let coordinateRegion = MKCoordinateRegionMakeWithDistance(touchCorrdinate, 2000, 2000)
         mapView.setRegion(coordinateRegion, animated: true)
+        retrieveURLS(forAnnaotation: annotation) { (status) in
+            if status{
+                self.retrieveImages(handler: { (finished) in
+                    if finished{
+                        self.removeSpinner()
+                        self.removeProgressLbl()
+                        
+                    }
+                })
+            }
+        }
     }
     
     func removePins() {
         for annotation in mapView.annotations{
             mapView.removeAnnotation(annotation)
+        }
+    }
+    
+    func retrieveURLS(forAnnaotation annotation: DropPin, handler : @escaping (_ status : Bool) -> ()) {
+        imageURLArray = []
+        print(annotation.coordinate.latitude)
+        print(annotation.coordinate.longitude)
+        print(flickrURL(forAPIKey: FLICKR_API_KEY, withAnnotation: annotation, numberofPhotos: 50))
+        Alamofire.request(flickrURL(forAPIKey: FLICKR_API_KEY, withAnnotation: annotation, numberofPhotos: 50)).responseJSON { (response) in
+            print("the response",response)
+            guard let json =  response.result.value as? Dictionary<String, AnyObject> else{ return }
+            let photosDict = json["photos"] as! Dictionary<String, AnyObject>
+            let photosDictArray = photosDict["photo"] as! [Dictionary<String, AnyObject>]
+            for photo in photosDictArray{
+                let postURL = "https://farm\(photo["farm"]!).staticflickr.com/\(photo["server"]!)/\(photo["id"]!)_\(photo["secret"]!)_h_d.jpg"
+                self.imageURLArray.append(postURL)
+            }
+            handler(true)
+        }
+        
+    }
+    
+    func retrieveImages(handler : @escaping(_ status : Bool) -> ()){
+        imageArray = []
+        for url in imageURLArray{
+            Alamofire.request(url).responseImage { (response) in
+                guard let image = response.result.value else {return}
+                self.imageArray.append(image)
+                self.progressLbl?.text = "\(self.imageArray.count)/50 IMAGES DOWNLOADED"
+                if self.imageArray.count == self.imageURLArray.count{
+                    handler(true)
+                }
+            }
+        }
+    }
+    
+    func cancelAllSessions(){
+        Alamofire.SessionManager.default.session.getTasksWithCompletionHandler { (sessionDataTask, uploadData, downloadData) in
+            sessionDataTask.forEach({ $0.cancel() })
+            downloadData.forEach({  $0.cancel() })
         }
     }
 
@@ -158,6 +215,7 @@ extension MapVC : CLLocationManagerDelegate{
     
     func locationManager(_ manager: CLLocationManager, didChangeAuthorization status: CLAuthorizationStatus) {
         centerMapOnLocation()
+        
     }
 }
 
@@ -177,3 +235,4 @@ extension MapVC : UICollectionViewDelegate, UICollectionViewDataSource {
         return cell!
     }
 }
+
